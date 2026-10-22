@@ -14,13 +14,6 @@ class CheckoutService
     /**
      * إتمام الطلب بمستوى عالي من الحماية والتوازي
      * (Idempotent, Bulk Locking, Deadlock Prevention)
-     *
-     * @param Cart $cart
-     * @param array $shippingData
-     * @param string $paymentMethod
-     * @param string|null $idempotencyKey
-     * @return Order
-     * @throws DomainException|Exception
      */
     public function processCheckout(
         Cart $cart, 
@@ -34,7 +27,6 @@ class CheckoutService
             return Order::where('idempotency_key', $idempotencyKey)->first();
         }
 
-        // 🔥 معاملة قاعدة البيانات مع إعادة المحاولة 3 مرات في حال حدوث Deadlock بسبب التزامن العالي
         return DB::transaction(function () use ($cart, $shippingData, $paymentMethod, $idempotencyKey) {
             
             // 2. قفل السلة الحالية لمنع التعديل عليها أثناء المعالجة
@@ -48,7 +40,7 @@ class CheckoutService
             $sortedItems = $lockedCart->items->sortBy('product_variant_id');
             $variantIds = $sortedItems->pluck('product_variant_id')->toArray();
 
-            // 4. 🔥 الـ Bulk Locking: قفل جميع النسخ بضربة واحدة داتا بيز مرتبة
+            // 4. قفل جميع النسخ بضربة واحدة
             $lockedVariants = ProductVariant::whereIn('id', $variantIds)
                 ->orderBy('id')
                 ->lockForUpdate()
@@ -62,13 +54,11 @@ class CheckoutService
             foreach ($sortedItems as $item) {
                 $variant = $lockedVariants->get($item->product_variant_id);
 
-                // فحص المخزون المتاح الفعلي (الأساسي مطروحاً منه المحجوز)
                 if (!$variant || $variant->available_stock < $item->quantity) {
                     $productName = $variant?->product?->name_ar ?? 'منتج غير محدد'; 
                     throw new DomainException("المنتج ({$productName}) لم يعد متوفراً بالكمية المطلوبة. المتاح الفعلي: " . ($variant->available_stock ?? 0));
                 }
 
-                // حساب الإجمالي بالاعتماد على السعر النهائي (الذي يشمل الخصومات الفعالة)
                 $itemTotal = $item->quantity * $variant->final_price;
                 $subtotal += $itemTotal;
 
@@ -80,11 +70,10 @@ class CheckoutService
                     'unit_price'          => $variant->final_price,
                 ];
 
-                // نظام الحجز: إذا لم تمر السلة بخطوة التثبيت المسبق، نحجز الكمية الآن بالـ DB
                 if ($lockedCart->status === 'active') {
                     $variant->increment('reserved_stock', $item->quantity);
                 }
-            } // 👈 تم إصلاح القوس المفقود هنا بنجاح
+            }
 
             // 6. الحسابات المالية الإجمالية للطلب
             $shippingPrice = 0; 
@@ -102,7 +91,7 @@ class CheckoutService
                 'discount'              => $discount,
                 'total_price'           => $totalPrice,
                 'payment_method'        => $paymentMethod,
-                'currency'              => 'SYP', // متوافق مع عملة المتجر الافتراضية
+                'currency'              => 'SYP',
                 'shipping_name'         => $shippingData['shipping_name'],
                 'shipping_phone'        => $shippingData['shipping_phone'],
                 'shipping_city'         => $shippingData['shipping_city'],
@@ -110,18 +99,16 @@ class CheckoutService
                 'notes'                 => $shippingData['notes'] ?? null,
             ]);
 
-            // 8. حفظ عناصر الطلب دفعة واحدة لتخفيف استعلامات الـ SQL
+            // 8. حفظ عناصر الطلب دفعة واحدة
             $order->items()->createMany($orderItemsData);
 
             // 9. تحويل حالة السلة إلى مستهلكة بنجاح
             $lockedCart->update(['status' => 'converted']);
 
-            // 🚀 هنا سيتم إلغاء تعليق الـ Job بمجرد إعداد الـ Queue لتقسيم الطلب على التجار
-            // if ($paymentMethod === Order::PAYMENT_COD) {
-            //     \App\Jobs\SplitOrderIntoVendorOrdersJob::dispatch($order);
-            // }
-
-            \App\Jobs\SplitOrderIntoVendorOrdersJob::dispatchSync($order);
+            // 🚀 إذا كان الدفع عند الاستلام (COD)، نقسم الطلب للتجار فور انتهاء الترانزاكشن
+            if ($paymentMethod === Order::PAYMENT_COD) {
+                \App\Jobs\SplitOrderIntoVendorOrdersJob::dispatch($order)->afterCommit();
+            }
 
             return $order;
 
@@ -129,57 +116,15 @@ class CheckoutService
     }
 
     /**
-     * إلغاء آمن للطلب وفك حجز المنتجات وإعادتها للمستودع
-     *
-     * @param Order $order
-     * @return Order
-     * @throws Exception
+     * إلغاء آمن للطلب وفك حجز المنتجات (تفويض لـ OrderService لتوحيد المنطق)
      */
     public function cancelOrder(Order $order): Order
     {
-        return DB::transaction(function () use ($order) {
-            
-            // قفل الطلب لمنع الـ Race Condition في حال محاولة إلغاء متزامنة
-            $lockedOrder = Order::where('id', $order->id)->lockForUpdate()->first();
-
-            if (!$lockedOrder || in_array($lockedOrder->status, ['cancelled', 'shipped', 'delivered'])) {
-                throw new Exception("لا يمكن إلغاء هذا الطلب في حالته الحالية.");
-            }
-
-            // جلب وترتيب الـ IDs لمنع الـ Deadlock أثناء فك الحجز
-            $variantIds = $lockedOrder->items->pluck('product_variant_id')->toArray();
-            sort($variantIds);
-
-            $lockedVariants = ProductVariant::whereIn('id', $variantIds)
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
-
-            // فك الحجز عن المستودع وإعادة الكميات المتاحة للبيع طبيعياً
-            foreach ($lockedOrder->items as $item) {
-                $variant = $lockedVariants->get($item->product_variant_id);
-
-                if ($variant) {
-                    $variant->decrement('reserved_stock', $item->quantity);
-                }
-            }
-
-            // تحديث حالة الطلب النهائي
-            $lockedOrder->update([
-                'status' => 'cancelled',
-            ]);
-
-            return $lockedOrder;
-        }, 3);
+        return app(\App\Modules\Order\Services\OrderService::class)->cancelOrder($order);
     }
 
     /**
-     * حجز عناصر السلة مؤقتاً (مثلاً أثناء التواجد في صفحة الدفع لفترة محدودة)
-     *
-     * @param Cart $cart
-     * @return bool
-     * @throws Exception
+     * حجز عناصر السلة مؤقتاً
      */
     public function reserveCartItems(Cart $cart): bool
     {
@@ -207,14 +152,12 @@ class CheckoutService
                     throw new Exception("المنتج غير متوفر بالكمية المطلوبة. يرجى تحديث السلة.");
                 }
 
-                // رفع قيمة المحجوز بالـ DB وحفظ القيمة بداخل عنصر السلة للرجوع إليها
                 $variant->increment('reserved_stock', $item->quantity);
                 $item->update([
                     'reserved_quantity' => $item->quantity
                 ]);
             }
 
-            // تحديث حالة السلة وتسجيل وقت الانتهاء للـ Cron Job المسؤول عن فك الحجز تلقائياً
             $lockedCart->update([
                 'status'      => 'reserved',
                 'reserved_at' => now(), 
@@ -224,12 +167,6 @@ class CheckoutService
         }, 3);
     }
 
-    /**
-     * توليد وصف نصي منسق لخصائص المنتج المتغيرة
-     *
-     * @param ProductVariant $variant
-     * @return string
-     */
     private function generateVariantDescription(ProductVariant $variant): string
     {
         $descriptionParts = [];
