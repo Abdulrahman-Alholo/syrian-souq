@@ -10,8 +10,6 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -26,8 +24,12 @@ class VendorPanelProvider extends PanelProvider
         return $panel
             ->id('vendor')
             ->path('vendor')
+            ->login() // ✅ بوابة دخول مستقلة للتجار (/vendor/login) لمنع التداخل مع الأدمن
+            ->brandName('Syrian-Souq | بوابة التجار')
+            ->maxContentWidth('full')
+            ->sidebarCollapsibleOnDesktop()
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::Emerald, // لون زمردي مميز للتاجر يفرقه بصرياً عن لوحة الأدمن الذهبية
             ])
             ->discoverResources(in: app_path('Filament/Vendor/Resources'), for: 'App\Filament\Vendor\Resources')
             ->discoverPages(in: app_path('Filament/Vendor/Pages'), for: 'App\Filament\Vendor\Pages')
@@ -36,12 +38,10 @@ class VendorPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Vendor/Widgets'), for: 'App\Filament\Vendor\Widgets')
             ->widgets([
-                // AccountWidget::class,
-                // FilamentInfoWidget::class,
-                \App\Filament\Vendor\Widgets\VendorStatsOverview::class
+                \App\Filament\Vendor\Widgets\VendorStatsOverview::class,
             ])
-            ->databaseNotifications() // 🔔 تفعيل الإشعارات اللحظية
-            ->databaseNotificationsPolling('30s') // التحديث التلقائي كل 30 ثانية
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('15s')
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

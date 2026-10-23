@@ -22,6 +22,11 @@ class ProductResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'Product Admin';
 
+    protected static ?string $modelLabel = 'منتج';
+    protected static ?string $pluralModelLabel = 'المنتجات';
+    
+    protected static string|\UnitEnum|null $navigationGroup = 'إدارة المبيعات والكتالوج';
+    protected static ?int $navigationSort = 2;
     public static function form(Schema $schema): Schema
     {
         return ProductForm::configure($schema);

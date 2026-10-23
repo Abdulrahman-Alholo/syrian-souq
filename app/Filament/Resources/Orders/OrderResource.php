@@ -28,6 +28,9 @@ class OrderResource extends Resource
     protected static ?string $modelLabel = 'طلب عميل';
     protected static ?string $pluralModelLabel = 'طلبات العملاء';
 
+    protected static string|\UnitEnum|null $navigationGroup = 'إدارة المبيعات والكتالوج';
+    protected static ?int $navigationSort = 1;
+
     // ✅ FORM (في v5 = Schema)
     public static function form(Schema $schema): Schema
     {

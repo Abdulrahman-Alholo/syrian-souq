@@ -28,6 +28,8 @@ class VendorResource extends Resource
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-building-storefront';
     protected static ?string $modelLabel = 'متجر';
     protected static ?string $pluralModelLabel = 'المتاجر';
+    protected static string|\UnitEnum|null $navigationGroup = 'إدارة المتاجر';
+    protected static ?int $navigationSort = 1;
 
     // 1. هيكل الجدول (Table)
     public static function table(Table $table): Table
