@@ -53,7 +53,7 @@ class VendorStatsOverview extends BaseWidget
                 ->chart([7, 2, 10, 3, 15, 4, 17]),
 
             // 🟣 2. بطاقة أرباح الطلبيات الجارية (Escrow)
-            Stat::make('أرباح قيد التحصيل (Escrow)', number_format($escrowEarnings, 0) . ' SYP')
+            Stat::make('أرباح قيد التحصيل', number_format($escrowEarnings, 0) . ' SYP')
                 ->description('تُضاف للمحفظة فور تسليم الطلبات')
                 ->descriptionIcon('heroicon-m-truck')
                 ->color('primary')

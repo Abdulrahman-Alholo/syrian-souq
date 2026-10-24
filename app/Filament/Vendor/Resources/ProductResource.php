@@ -33,7 +33,8 @@ class ProductResource extends Resource
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-shopping-bag';
     protected static ?string $modelLabel = 'منتج';
     protected static ?string $pluralModelLabel = 'المنتجات';
-
+    protected static string|\UnitEnum|null $navigationGroup = 'المبيعات والكتالوج';
+    protected static ?int $navigationSort = 2;
     public static function form(Schema $schema): Schema
     {
         return $schema->components([

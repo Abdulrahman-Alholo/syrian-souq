@@ -4,7 +4,6 @@ namespace App\Filament\Vendor\Resources;
 
 use App\Filament\Vendor\Resources\TransactionResource\Pages;
 use App\Modules\Finance\Models\VendorTransaction;
-
 use Filament\Resources\Resource;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
@@ -18,12 +17,18 @@ class TransactionResource extends Resource
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
     protected static ?string $modelLabel = 'حركة مالية';
     protected static ?string $pluralModelLabel = 'كشف الحساب';
-    protected static ?int $navigationSort = 2; // نضعه قبل طلبات السحب
+    protected static string|\UnitEnum|null $navigationGroup = 'الماليات';
+    protected static ?int $navigationSort = 1;
+
+    public static function canCreate(): bool
+    {
+        return false;
+    }
 
     // 🛡️ الحماية الأمنية: التاجر يرى حركاته هو فقط
     public static function getEloquentQuery(): Builder
     {
-        $vendorId = auth()->user()->vendor?->id;
+        $vendorId = auth()->user()?->vendor?->id;
 
         if (!$vendorId) {
             return parent::getEloquentQuery()->whereRaw('1 = 0');
@@ -32,24 +37,26 @@ class TransactionResource extends Resource
         return parent::getEloquentQuery()->where('vendor_id', $vendorId);
     }
 
-    // 🟢 قمنا بحذف دالة form() بالكامل لأننا لا نريد للتاجر أن يضيف حركات يدوياً
-
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                // 1. نوع الحركة (إيداع/سحب) مع أيقونات وألوان توضيحية
+                TextColumn::make('id')
+                    ->label('#')
+                    ->sortable(),
+
+                // 1. نوع الحركة (إيداع/سحب)
                 TextColumn::make('type')
                     ->label('النوع')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'credit' => 'إيداع (أرباح)',
-                        'debit'  => 'سحب (خصم)',
+                        'credit' => 'إيداع (+)',
+                        'debit'  => 'خصم / سحب (-)',
                         default  => $state,
                     })
                     ->color(fn (string $state): string => match ($state) {
-                        'credit' => 'success', // أخضر للإيداع
-                        'debit'  => 'danger',  // أحمر للسحب
+                        'credit' => 'success',
+                        'debit'  => 'danger',
                         default  => 'gray',
                     })
                     ->icon(fn (string $state): string => match ($state) {
@@ -58,10 +65,21 @@ class TransactionResource extends Resource
                         default  => 'heroicon-m-banknotes',
                     }),
 
-                // 2. المبلغ (مع إضافة إشارة + أو - بناءً على النوع)
+                // 2. تصنيف العملية
+                TextColumn::make('transaction_type')
+                    ->label('التصنيف')
+                    ->badge()
+                    ->color('gray')
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'order_earning'     => 'أرباح مبيعات',
+                        'payout'            => 'سحب نقدي',
+                        'manual_adjustment' => 'تسوية إدارية',
+                        default             => (string) $state,
+                    }),
+
+                // 3. المبلغ
                 TextColumn::make('amount')
                     ->label('المبلغ')
-                    ->money('SYP')
                     ->weight('bold')
                     ->color(fn ($record) => $record->type === 'credit' ? 'success' : 'danger')
                     ->formatStateUsing(function ($record) {
@@ -69,47 +87,40 @@ class TransactionResource extends Resource
                         return $symbol . ' ' . number_format($record->amount, 0) . ' SYP';
                     }),
 
-                // 3. وصف الحركة المالي (شرح العملية)
+                // 4. الرصيد التراكمي بعد الحركة
+                TextColumn::make('balance_after')
+                    ->label('الرصيد بعد الحركة')
+                    ->money('SYP')
+                    ->weight('bold')
+                    ->color('info'),
+
+                // 5. وصف الحركة المالي
                 TextColumn::make('description')
-                    ->label('البيان')
-                    ->wrap() // لكي لا ينقطع النص الطويل
-                    ->limit(50),
+                    ->label('البيان والتفاصيل')
+                    ->wrap(),
 
-                // 4. حالة الحركة
-                TextColumn::make('status')
-                    ->label('الحالة')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'completed' => 'success',
-                        'pending'   => 'warning',
-                        'failed'    => 'danger',
-                        default     => 'gray',
-                    }),
-
-                // 5. التاريخ والوقت بدقة
+                // 6. التاريخ والوقت بدقة
                 TextColumn::make('created_at')
                     ->label('التاريخ')
                     ->dateTime('d M Y - h:i A')
                     ->sortable(),
             ])
-            ->defaultSort('created_at', 'desc') // أحدث الحركات تظهر أولاً
+            ->defaultSort('created_at', 'desc')
             ->filters([
-                // فلتر سريع ليفرز التاجر السحوبات عن الأرباح
                 SelectFilter::make('type')
                     ->label('نوع الحركة')
                     ->options([
-                        'credit' => 'الإيداعات فقط',
-                        'debit'  => 'السحوبات فقط',
+                        'credit' => 'الإيداعات فقط (+)',
+                        'debit'  => 'السحوبات والخصومات فقط (-)',
                     ]),
             ])
-            ->actions([]) // لا يوجد أي أزرار (فقط عرض)
-            ->bulkActions([]); // منع الحذف الجماعي
+            ->actions([])
+            ->bulkActions([]);
     }
 
     public static function getPages(): array
     {
         return [
-            // صفحة العرض (الجدول) فقط لا غير!
             'index' => Pages\ListTransactions::route('/'),
         ];
     }

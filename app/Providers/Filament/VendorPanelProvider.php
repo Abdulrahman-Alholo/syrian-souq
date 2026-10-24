@@ -24,12 +24,17 @@ class VendorPanelProvider extends PanelProvider
         return $panel
             ->id('vendor')
             ->path('vendor')
-            ->login() // ✅ بوابة دخول مستقلة للتجار (/vendor/login) لمنع التداخل مع الأدمن
+            ->login()
             ->brandName('Syrian-Souq | بوابة التجار')
             ->maxContentWidth('full')
             ->sidebarCollapsibleOnDesktop()
             ->colors([
-                'primary' => Color::Emerald, // لون زمردي مميز للتاجر يفرقه بصرياً عن لوحة الأدمن الذهبية
+                'primary' => Color::Emerald,
+            ])
+            ->navigationGroups([
+                'المبيعات والكتالوج',
+                'الماليات',
+                'إعدادات المتجر',
             ])
             ->discoverResources(in: app_path('Filament/Vendor/Resources'), for: 'App\Filament\Vendor\Resources')
             ->discoverPages(in: app_path('Filament/Vendor/Pages'), for: 'App\Filament\Vendor\Pages')
@@ -39,6 +44,7 @@ class VendorPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Vendor/Widgets'), for: 'App\Filament\Vendor\Widgets')
             ->widgets([
                 \App\Filament\Vendor\Widgets\VendorStatsOverview::class,
+                \App\Filament\Vendor\Widgets\VendorLatestOrdersWidget::class,
             ])
             ->databaseNotifications()
             ->databaseNotificationsPolling('15s')

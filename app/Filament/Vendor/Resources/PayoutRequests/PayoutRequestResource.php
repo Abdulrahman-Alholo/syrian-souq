@@ -24,7 +24,9 @@ class PayoutRequestResource extends Resource
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-wallet';
     protected static ?string $modelLabel = 'طلب سحب';
     protected static ?string $pluralModelLabel = 'سحب الأرباح';
-    protected static ?int $navigationSort = 3;
+    protected static string|\UnitEnum|null $navigationGroup = 'الماليات';
+
+    protected static ?int $navigationSort = 2;
 
     /**
      * 🧠 دالة مساعدة لحساب الرصيد المتاح فعلياً للسحب (بعد استثناء الطلبات المعلقة)
