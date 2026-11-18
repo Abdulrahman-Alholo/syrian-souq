@@ -37,4 +37,5 @@ app/Modules/
 ├── Vendor/    # Store configuration, commission policies
 └── User/      # Authentication, Customer profiles
 
-<img width="5693" height="8741" alt="diagram" src="https://github.com/user-attachments/assets/9041adea-085b-49e7-9320-9fa316e03b5d" />
+```
+<img width="100%" alt="diagram" src="https://github.com/user-attachments/assets/69a7f49d-3b1d-4906-9a7c-c26f5c78523e" />
