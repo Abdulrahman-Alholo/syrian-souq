@@ -36,3 +36,5 @@ app/Modules/
 ├── Payment/   # Payment gateway interfaces (COD / Online)
 ├── Vendor/    # Store configuration, commission policies
 └── User/      # Authentication, Customer profiles
+
+<img width="5693" height="8741" alt="diagram" src="https://github.com/user-attachments/assets/9041adea-085b-49e7-9320-9fa316e03b5d" />
