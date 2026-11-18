@@ -18,8 +18,8 @@ The platform is designed following **Domain-Driven Design (DDD)** and **Modular 
 
 ## 🛠️ Tech Stack
 
-* **Backend Framework:** Laravel 11 / PHP 8.2+
-* **Admin & Vendor Panels:** Filament v3 (Livewire 3 & Alpine.js)
+* **Backend Framework:** Laravel 12 / PHP 8.3+
+* **Admin & Vendor Panels:** Filament v5 .
 * **Database:** MySQL (Single-database architecture with scoped logical isolation)
 * **Queues & Jobs:** Database / Sync driver
 
@@ -38,4 +38,6 @@ app/Modules/
 └── User/      # Authentication, Customer profiles
 
 ```
+## 📐 System Architecture Diagram
+
 <img width="100%" alt="diagram" src="https://github.com/user-attachments/assets/69a7f49d-3b1d-4906-9a7c-c26f5c78523e" />
